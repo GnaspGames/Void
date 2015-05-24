@@ -1,0 +1,134 @@
+=========================
+=     Into The Void     =
+=========================
+A Minecraft game by Gnasp
+-------------------------
+
+Portals
+-------
+
+# SETUP
+# For players going through portals a scoreboard objective is needed: portal_cooldown
+/scoreboard objectives add portal_cooldown dummy Cooldown
+# Value 1 means the player has just gone through
+
+# To summon a new portal (either orange or blue)
+/summon ArmorStand ~ ~ ~ {NoGravity:true,Invulnerable:true,CustomName:"portal_orange"}
+/summon ArmorStand ~ ~ ~ {NoGravity:true,Invulnerable:true,CustomName:"portal_blue"}
+/summon ArmorStand ~ ~ ~ {NoGravity:true,Invisible:true,Invulnerable:true,Marker:true,CustomName:"portal_orange"}
+/summon ArmorStand ~ ~ ~ {NoGravity:true,Invisible:true,Invulnerable:true,Marker:true,CustomName:"portal_blue"}
+# Then give it the correct direction by standing in it, facing the "out" of the portal and running:
+/tp @e[type=ArmorStand,r=0] @p
+
+# Turn portals on:
+/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 redstone_block
+# Turn portals off:
+/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 wool
+
+clock_portals:
+	
+# Generate particle effects
+	/execute @e[type=ArmorStand,name=portal_orange] ~ ~ ~ particle iconcrack_35_1 ~ ~ ~ 0.2 1.2 0.2 0 100
+	/execute @e[type=ArmorStand,name=portal_blue] ~ ~ ~ particle iconcrack_35_11 ~ ~ ~ 0.2 1.2 0.2 0 100
+	
+# Handle teleporting
+	# TODO: Fix logic here 
+		# -> going through blue is fine BUT going through orange bounces you through a blue and then finally to an orange.
+		# -> May require /testfor before each teleport and duplicating the second
+	
+	/execute @e[type=ArmorStand,name=portal_orange] ~ ~ ~ scoreboard players set @a[r=0,score_portal_cooldown=0,score_portal_cooldown_min=0] portal_cooldown 1
+	/execute @e[type=ArmorStand,name=portal_orange] ~ ~ ~ tp @a[r=0,score_portal_cooldown=1,score_portal_cooldown_min=1] @r[type=ArmorStand,name=portal_blue]
+	/execute @e[type=ArmorStand,name=portal_blue] ~ ~ ~ tp @a[r=0,score_portal_cooldown=0,score_portal_cooldown_min=0] @r[type=ArmorStand,name=portal_orange]
+	/scoreboard players set @a portal_cooldown 0
+	/execute @e[type=ArmorStand,name=portal_orange] ~ ~ ~ scoreboard players set @a[r=0] portal_cooldown 2
+	/execute @e[type=ArmorStand,name=portal_blue] ~ ~ ~ scoreboard players set @a[r=0] portal_cooldown 1
+
+Resources (fireballs, resource pads etc)
+----------------------------------------
+
+# SETUP
+# For resource pads a scoreboard objective is needed:
+	/scoreboard objectives add rpad_states dummy RPad States
+# Scores mean:
+	0 = inactive
+	1 = setup
+	2 = ready
+	3 = use
+	4 = reset
+	
+# Also a global variable is needed for a timer
+# When it reaches a certain point, a new resource pad is triggered for 'setup'
+	/scoreboard players set RPadTimer vars 0
+
+# To summon a new Fireball Resource Pad:
+/summon ArmorStand ~ ~ ~ {NoGravity:true,Invisible:true,Invulnerable:true,Marker:true,CustomName:"rpad_fireballs"}
+# Then add it to the rpad_fireballs scoreboard objective
+/scoreboard players set @e[type=ArmorStand,r=0] rpad_states 0
+
+# When a game starts:
+# all resource pads need to be set to 4 (reset)
+/scoreboard players set @e[type=ArmorStand,name=rpad_fireballs] rpad_states 4
+# all players need to be given only 5 snowballs
+/clear @a
+/give @a minecraft:snowball 5
+
+# Turn resources on:
+/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 redstone_block
+# Turn resources off:
+/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 wool
+
+clock_fireball_rpads:
+
+# Replace thrown snowballs with fireballs
+	/execute @e[type=Snowball] ~ ~ ~ summon Fireball ~ ~ ~ {ExplosionRadius:1,direction:[]}
+	
+# Handle Resource Pads
+	# update 'setup' to 'ready'
+	/execute @e[score_rpad_states=1,score_rpad_states_min=1] ~ ~ ~ fill ~ ~ ~ ~ ~-1 ~ minecraft:stone_slab2 0 replace minecraft:stone_slab 7
+	/execute @e[score_rpad_states=1,score_rpad_states_min=1] ~ ~ ~ fill ~ ~ ~ ~ ~-1 ~ minecraft:stone_slab2 8 replace minecraft:stone_slab 15
+	/execute @e[score_rpad_states=1,score_rpad_states_min=1] ~ ~ ~ playsound random.levelup @a
+	/scoreboard players set @e[score_rpad_states=1,score_rpad_states_min=1] rpad_states 2
+	
+	# allow players to set to 'use'
+	/execute @a[type=Player] ~ ~ ~ scoreboard players set @e[score_rpad_states=2,score_rpad_states_min=2,r=1] rpad_states 3
+	
+	# 'use' pads should give nearest player, then set to 'reset'
+	/execute @e[score_rpad_states=3,score_rpad_states_min=3] ~ ~ ~ give @p minecraft:snowball 5
+	/execute @e[score_rpad_states=3,score_rpad_states_min=3] ~ ~ ~ playsound fire.ignite @p ~ ~ ~ 1.0 0.5 1.0
+	/scoreboard players set @e[score_rpad_states=3,score_rpad_states_min=3] rpad_states 4
+	
+	# 'reset' pads should updated then set to 'inactive'
+	/execute @e[score_rpad_states=4,score_rpad_states_min=4] ~ ~ ~ fill ~ ~ ~ ~ ~-1 ~ minecraft:stone_slab 7 replace minecraft:stone_slab2 0
+	/execute @e[score_rpad_states=4,score_rpad_states_min=4] ~ ~ ~ fill ~ ~-1 ~ ~ ~-1 ~ minecraft:stone_slab 15 replace minecraft:stone_slab2 8
+	/scoreboard players set @e[score_rpad_states=4,score_rpad_states_min=4] rpad_states 0
+	
+	# use timer to 'setup' random resource pads every 30 seconds (may adjust)
+	/scoreboard players add RPadTimer vars 0
+	/scoreboard players test RPadTimer vars 300 350 
+		/scoreboard players set @r[type=ArmorStand,score_rpad_states=0,score_rpad_states_min=0] rpad_states 1
+        /scoreboard players set RPadTimer vars 0
+		
+		
+		
+Beta Testing Book
+-----------------
+/give @p written_book 1 0 
+{
+	pages:["{\"text\":\"\",\"extra\":[{\"text\":\"Into the Void (Beta) \n----------------\n\",\"color\":\"black\",\"bold\":\"true\"},{\"text\":\"Portals: \n\",\"color\":\"black\"},{\"text\":\"Start  \",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 redstone_block\"}},{\"text\":\"Stop \n\",\"color\":\"red\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 wool\"}},{\"text\":\"Resources: \n\",\"color\":\"black\"},{\"text\":\"Start  \",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 redstone_block\"}},{\"text\":\"Stop \",\"color\":\"red\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 wool\"}}]}"],
+	title:"Into the Void Beta Testing",
+	author:"Gnasp"
+}
+
+/give @p written_book 1 0 
+{
+	pages:["{\"text\":\"\",\"extra\":[{\"text\":\"Into the Void (Beta) \n----------------\n\",\"color\":\"black\",\"bold\":\"true\"},{\"text\":\"Portals: \n\",\"color\":\"black\"},{\"text\":\"Start  \",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 redstone_block\"}},{\"text\":\"Stop \n\",\"color\":\"red\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_portals] ~ ~ ~ setblock ~ ~ ~1 wool\"}},{\"text\":\"Resources: \n\",\"color\":\"black\"},{\"text\":\"Start  \",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 redstone_block\"}},{\"text\":\"Stop \n\",\"color\":\"red\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/execute @e[name=clock_fireball_rpads] ~ ~ ~ setblock ~ ~ ~1 wool\"}},{\"text\":\"All Players: \n\",\"color\":\"black\"},{\"text\":\"Clear Inventories\n\",\"color\":\"red\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/clear @a\"}},{\"text\":\"Give 5 Snowballs\",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/give @a minecraft:snowball 5\"}}]}"],
+	title:"Into the Void Beta Testing",
+	author:"Gnasp"
+}
+	
+	
+
+	
+
+
+
